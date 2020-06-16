@@ -33,9 +33,33 @@ func NewServer(documentRoot string, maxUploadSize int64, token string, enableCOR
 		EnableCORS:    enableCORS,
 	}
 }
+func (s Server) handleDelete(w http.ResponseWriter, r *http.Request) {
+
+	re := regexp.MustCompile(`^/files/.*$`)
+	if !re.MatchString(r.URL.Path) {
+		w.WriteHeader(http.StatusNotFound)
+		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
+		return
+	}
+	if s.EnableCORS {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	}
+	path2Delete := strings.Join([]string{s.DocumentRoot, strings.TrimPrefix(r.URL.Path, "/files/")}, "/")
+	err := os.Remove(path2Delete)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
+		return
+	}
+	w.WriteHeader(http.StatusMovedPermanently)
+	writeSuccess(w, r.URL.Path)
+	return
+}
 
 func (s Server) handleGet(w http.ResponseWriter, r *http.Request) {
-	re := regexp.MustCompile(`^/files/([^/]+)$`)
+
+	re := regexp.MustCompile(`^/files/.*$`)
 	if !re.MatchString(r.URL.Path) {
 		w.WriteHeader(http.StatusNotFound)
 		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
@@ -221,8 +245,10 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.handlePost(w, r)
 	case http.MethodPut:
 		s.handlePut(w, r)
+	case http.MethodDelete:
+		s.handleDelete(w, r)
 	default:
-		w.Header().Add("Allow", "GET,HEAD,POST,PUT")
+		w.Header().Add("Allow", "GET,HEAD,POST,PUT,DELETE")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		writeError(w, fmt.Errorf("method \"%s\" is not allowed", r.Method))
 	}
